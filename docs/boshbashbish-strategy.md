@@ -22,30 +22,34 @@
 
 ## 2. O que a estratégia REALMENTE é (descoberto via Data API)
 
-**É ARBITRAGEM PURA + SCALP REATIVO**, não market making direcional.
+**Não é arb simultâneo. É MOMENTUM + DCA no perdedor.**
 
-### Entrada: compra OS DOIS LADOS simultaneamente
+### ⚠️ Correção importante
 
-Quando a soma Up+Down < 1.0, ele entra nos dois lados ao mesmo tempo:
+Aparentemente ele entra nos dois lados "ao mesmo tempo", mas rastreando os timestamps segundo a segundo, vemos que:
+
+1. **Entra PRIMEIRO e GRANDE no lado que está GANHANDO** (momentum)
+2. **Entra DEPOIS e PEQUENO no lado PERDEDOR** (hedge/lottery)
+3. A diferença é de 2 segundos (um bloco Polygon) — não é simultâneo
+4. O lado primário é 5-10× maior que o secundário
 
 ```
-Candle 1773858900, T+7-17s:
-  BUY Up  @ 0.65-0.71 (100-400 shares)
-  BUY Down @ 0.28-0.33
-  Soma = 0.70 + 0.29 = 0.99 → lucro garantido se ambos fillam
+Candle 1773858900:
+  T+7s: BUY Up  @ 0.65-0.71 → 500+ shares ($330)  ← PRIMÁRIO (Up ganhando)
+  T+9s: BUY Down @ 0.28-0.29 → 150 shares ($43)    ← SECUNDÁRIO (Down perdendo)
 
-Candle 1773859200, T+93s:
-  BUY Down @ 0.23 (200+ shares)
-  BUY Up   @ 0.75
-  Soma = 0.23 + 0.75 = 0.98 → puro arb
-
-Candle 1773859500, T+5s:
-  BUY Down @ 0.51 (397 shares = $203!)
-  BUY Up   @ 0.44-0.46
-  Soma = 0.51 + 0.44 = 0.95 → grande alpha
+Candle 1773859500:
+  T+5s: BUY Down @ 0.51 → 397 shares ($203)         ← PRIMÁRIO (Down liderando)
+  T+7s: BUY Up  @ 0.44-0.46 → 38 shares ($17)       ← SECUNDÁRIO (Up mais barato)
 ```
 
-A lógica: se entrar em ambos e um ganhar ($1/share), o lucro do ganhador cobre o custo do perdedor + sobra. Quanto menor a soma, maior o lucro garantido.
+### A lógica real
+
+- **Posição primária**: aposta no vencedor provável (~60-70% de probabilidade)
+- **Posição secundária**: compra o perdedor barato como loteria
+- Se o perdedor colapsa (0.03-0.09), faz DCA massivo esperando virada de último segundo
+- Se o perdedor vira, ganho de 10-33x
+- Se não vira, perde apenas o custo da posição secundária (pequeno)
 
 ---
 
@@ -116,42 +120,45 @@ T+137s: BUY Down @ 0.78 (41sh) — Down spiked ao final
 
 ---
 
-## 4. Flowchart CORRIGIDO da Estratégia
+## 4. Flowchart REAL da Estratégia
 
 ```
-LOOP 500ms
+INÍCIO DO CANDLE (T+0s)
 │
-├─ 1. FETCH orderbook Up + Down
-│      Calcula: upMid, downMid, soma = upMid + downMid
+├─ 1. IDENTIFICAR O LÍDER
+│      Qual lado está acima de 0.50? → esse é o provável vencedor
+│      Ex: Down @ 0.55, Up @ 0.45 → Down é o líder
 │
-├─ 2. RECONCILE fills
+├─ 2. ENTRADA PRIMÁRIA (T+2-10s) — MOMENTUM
+│      Compra o LÍDER em tamanho grande (100-400 shares)
+│      Ex: BUY Down @ 0.55 (397 shares = $218)
 │
-├─ 3. ENTRADA ARB — Se soma < threshold (ex: 0.97):
-│      Entra nos DOIS LADOS simultaneamente
-│      BUY Up  com 100-400 shares @ bestAsk Up
-│      BUY Down com 100-400 shares @ bestAsk Down
-│      Lógica: se um ganhar $1/share, cobre o custo do outro + lucro
+├─ 3. ENTRADA SECUNDÁRIA (T+5-15s) — HEDGE/LOTTERY
+│      Compra o PERDEDOR em tamanho pequeno (5-10% do primário)
+│      Ex: BUY Up @ 0.44 (38 shares = $17)
 │
-├─ 4. ENTRADA DIRECIONAL — Se um lado muito barato:
-│      Preço < 0.25: Entra massivo nesse lado (DCA cascata)
-│      Reativo: se preço cai violentamente (0.45→0.30 em 1 tick), entra
+├─ 4. DCA REATIVO (durante o candle)
+│      Se o PERDEDOR cai mais → entra com mais shares
+│      Não é ladder fixo — é reativo ao movimento
+│      Ex: Up vai de 0.44 → 0.37 → entra mais Up
+│          Up vai de 0.37 → 0.09 → entra MUITO mais Up (600sh)
 │
-├─ 5. DCA REATIVO (durante o candle):
-│      Preço caiu mais? Entra com mais shares ao preço menor
-│      Não é ladder pré-determinado — é reativo ao movimento
+├─ 5. LAST CALL (qualquer momento quando preço colapsa)
+│      Se perdedor < 0.09 → entra pesado (100sh)
+│      EV positivo: 11x de retorno potencial, probabilidade ~10%
+│      Timing variável: pode ser T+129s, T+185s, T+213s, T+285s
 │
-├─ 6. TAKE PROFIT (assimétrico):
-│      Se side "winner" subiu 20-100%+ → SELL em escada
-│      Se side "loser" está perdendo → SELL rápido (10-30s) pra liberar capital
+├─ 6. MOMENTUM FLIP (final do candle)
+│      Se o líder sobe muito (0.78+) → compra MAIS do líder
+│      Segura posição até resolução
 │
-├─ 7. LAST CALL (últimos 1-300s — momento variável):
-│      Se preço < 0.09 → Compra 100sh (retorno potencial: 11x se ganhar)
-│      Se preço < 0.06 → Compra 100sh (retorno potencial: 16x)
-│      Timing: pode ser T+129s, T+185s, T+213s, T+285s — sem horário fixo
+├─ 7. EXIT PERDEDOR
+│      Quando o perdedor se recupera → SELL em escada
+│      Ex: comprou Up @ 0.09-0.16, vende @ 0.16-0.37
 │
 └─ 8. CLEANUP
-       Cancela ordens velhas
        Para 15s antes do fim
+       Cancela ordens não filladas
 ```
 
 ---
@@ -160,25 +167,25 @@ LOOP 500ms
 
 | Parâmetro | Valor REAL observado | Nosso config atual | Status |
 |-----------|---------------------|--------------------|--------|
-| Entrada | AMBOS os lados quando soma < 0.97-0.99 | Um lado só (threshold direcional) | ❌ ERRADO |
+| Entrada primária | **Lado líder** (> 0.50), 100-400sh | Threshold direcional (< 0.35) | ❌ INVERTIDO |
+| Entrada secundária | **Lado perdedor**, 5-10% do primário | Não implementado | ❌ FALTANDO |
+| Timing entrada | **T+2-10s** (imediato ao abrir) | Contínuo 500ms | ⚠️ PARCIAL |
 | Shares/ordem | **100-400 shares** por ordem | 5 | ❌ MUITO PEQUENO |
 | Exposure/candle | **$200-300 USDC** | $50 máximo | ❌ UNDEREXPOSED |
-| Timing entrada | **T+5s a T+20s** (imediato) ou T+90-100s | Contínuo 500ms | ⚠️ PARCIAL |
 | Last call preço | **0.03-0.09** (extremo) | 0.20 (conservador) | ❌ ERRADO |
-| Last call timing | **Qualquer momento** quando preço colapsa | 120s antes | ❌ ERRADO |
+| Last call timing | **Qualquer momento** quando colapsa | 120s antes fixo | ❌ ERRADO |
 | Take profit | **20-120%** sobre custo | 10% fixo | ❌ CONSERVADOR |
-| Stop loss | **10-30s** se lado perdendo capital | Não implementado | ❌ FALTANDO |
 | DCA trigger | **Crash brusco de preço** (reativo) | Ladder linear fixo | ❌ DIFERENTE |
-| Soma de entrada | **< 0.97-0.99** (arb puro) | Não verifica soma | ❌ FALTANDO |
+| Momentum flip | **Compra mais do líder** quando > 0.78 | Não implementado | ❌ FALTANDO |
 
 ---
 
 ## 6. Erros Críticos na Nossa Implementação
 
-### Erro #1 — CRÍTICO: Entra em um lado só
-**Problema:** Nossa lógica é: "se upMid < 0.35 → entra Up". Mas BoshBashBish entra nos DOIS LADOS quando a soma é baixa.
+### Erro #1 — CRÍTICO: Lógica de entrada INVERTIDA
+**Problema:** Nossa lógica é: "se upMid < 0.35 → entra Up" — compramos o BARATO. BoshBashBish faz o oposto: compra o CARO (o que está ganhando) como posição primária, e o BARATO como posição secundária pequena.
 
-**Fix:** Verificar `upMid + downMid < 0.97` como trigger primário. Entrar nos dois.
+**Fix:** Identificar o líder (quem está > 0.50), entrar GRANDE no líder, entrar PEQUENO no perdedor.
 
 ### Erro #2 — CRÍTICO: Shares muito pequenas (5 vs 100-400)
 **Problema:** Com 5 shares @ $0.35 = $1.75 por ordem × 10 ordens = $17.50 total. BoshBashBish coloca $203 numa única ordem.
