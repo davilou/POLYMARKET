@@ -154,23 +154,30 @@ export interface SpotSnapshot {
 // ─── Scalper types ──────────────────────────────────────────────────────────
 
 export interface ScalperConfig {
-  pollMs: number              // 500
-  entryThresholdUp: number    // 0.35 — buy Up when mid < this
-  entryThresholdDown: number  // 0.30 — buy Down when mid < this
-  dcaOrders: number           // 10 — number of DCA orders
-  dcaSpreadPct: number        // 0.10 — total spread (e.g. 0.30 to 0.27)
-  sharesPerOrder: number      // 5 — minimum shares per order
-  hedgeThreshold: number      // 0.55 — if opposite side > this, hedge
-  profitTargetPct: number     // 0.10 — take profit at 10%+
-  profitLadderOrders: number  // 5 — number of SELL ladder orders
-  lastCallSecs: number        // 120 — last 2 minutes
-  lastCallMaxPrice: number    // 0.20 — only buy if price < this
-  lastCallShares: number      // 5 — shares for contrarian bet
-  maxExposureUsdc: number     // 50 — max $50 at risk
-  maxExposurePerSide: number  // 30 — max 30 shares per side
-  stopTradingSecs: number     // 15 — stop 15s before close
-  maxOpenOrders: number       // 20 — max simultaneous open orders
-  staleOrderMaxAgeMs: number  // 15000 — cancel orders > 15s unfilled
+  pollMs: number               // 500ms tick
+  // Entry
+  leaderThreshold: number      // 0.52 — side must be above this to be "leader"
+  primaryShares: number        // 15 — shares on the leading (likely winner) side
+  secondaryShares: number      // 5  — shares on the losing side (lottery)
+  // DCA on loser
+  dcaDropTriggerPct: number    // 0.25 — DCA when loser drops 25% from our avg cost
+  dcaReactiveShares: number    // 10  — shares per reactive DCA
+  maxDcaCount: number          // 3   — max DCA rounds on loser
+  // Momentum
+  momentumFlipThreshold: number // 0.78 — add to leader when it reaches this
+  momentumAddShares: number     // 5   — extra shares added to leader on momentum
+  // Last call
+  lastCallMaxPrice: number      // 0.09 — only buy if loser price < this
+  lastCallShares: number        // 10  — shares on last call
+  // Take profit on loser
+  profitTargetPct: number       // 0.20 — sell loser when it gains 20%+
+  profitLadderOrders: number    // 3   — sell ladder steps
+  // Risk
+  maxExposureUsdc: number       // 30  — max USDC per candle (test budget)
+  maxExposurePerSide: number    // 50  — max shares per side
+  stopTradingSecs: number       // 15  — stop 15s before close
+  staleOrderMaxAgeMs: number    // 15000
+  maxOpenOrders: number         // 20
 }
 
 export interface LocalOrder {

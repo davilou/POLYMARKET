@@ -8,22 +8,23 @@ import { logger } from './logger.js'
 
 const DEFAULT_CONFIG: ScalperConfig = {
   pollMs: 500,
-  entryThresholdUp: parseFloat(process.env.ENTRY_THRESHOLD_UP ?? '0.35'),
-  entryThresholdDown: parseFloat(process.env.ENTRY_THRESHOLD_DOWN ?? '0.30'),
-  dcaOrders: parseInt(process.env.DCA_ORDERS ?? '10'),
-  dcaSpreadPct: parseFloat(process.env.DCA_SPREAD_PCT ?? '0.10'),
-  sharesPerOrder: parseInt(process.env.SHARES_PER_ORDER ?? '5'),
-  hedgeThreshold: parseFloat(process.env.HEDGE_THRESHOLD ?? '0.55'),
-  profitTargetPct: parseFloat(process.env.PROFIT_TARGET_PCT ?? '0.10'),
-  profitLadderOrders: parseInt(process.env.PROFIT_LADDER_ORDERS ?? '5'),
-  lastCallSecs: parseInt(process.env.LAST_CALL_SECS ?? '120'),
-  lastCallMaxPrice: parseFloat(process.env.LAST_CALL_MAX_PRICE ?? '0.20'),
-  lastCallShares: parseInt(process.env.LAST_CALL_SHARES ?? '5'),
-  maxExposureUsdc: parseFloat(process.env.MAX_EXPOSURE_USDC ?? '50'),
-  maxExposurePerSide: parseInt(process.env.MAX_EXPOSURE_PER_SIDE ?? '30'),
-  stopTradingSecs: parseInt(process.env.STOP_TRADING_SECS ?? '15'),
-  maxOpenOrders: parseInt(process.env.MAX_OPEN_ORDERS ?? '20'),
-  staleOrderMaxAgeMs: parseInt(process.env.STALE_ORDER_MAX_AGE_MS ?? '15000'),
+  leaderThreshold:          parseFloat(process.env.LEADER_THRESHOLD         ?? '0.52'),
+  primaryShares:            parseInt (process.env.PRIMARY_SHARES             ?? '15'),
+  secondaryShares:          parseInt (process.env.SECONDARY_SHARES           ?? '5'),
+  dcaDropTriggerPct:        parseFloat(process.env.DCA_DROP_TRIGGER_PCT      ?? '0.25'),
+  dcaReactiveShares:        parseInt (process.env.DCA_REACTIVE_SHARES        ?? '10'),
+  maxDcaCount:              parseInt (process.env.MAX_DCA_COUNT              ?? '3'),
+  momentumFlipThreshold:    parseFloat(process.env.MOMENTUM_FLIP_THRESHOLD   ?? '0.78'),
+  momentumAddShares:        parseInt (process.env.MOMENTUM_ADD_SHARES        ?? '5'),
+  lastCallMaxPrice:         parseFloat(process.env.LAST_CALL_MAX_PRICE       ?? '0.09'),
+  lastCallShares:           parseInt (process.env.LAST_CALL_SHARES           ?? '10'),
+  profitTargetPct:          parseFloat(process.env.PROFIT_TARGET_PCT         ?? '0.20'),
+  profitLadderOrders:       parseInt (process.env.PROFIT_LADDER_ORDERS       ?? '3'),
+  maxExposureUsdc:          parseFloat(process.env.MAX_EXPOSURE_USDC         ?? '30'),
+  maxExposurePerSide:       parseInt (process.env.MAX_EXPOSURE_PER_SIDE      ?? '50'),
+  stopTradingSecs:          parseInt (process.env.STOP_TRADING_SECS          ?? '15'),
+  staleOrderMaxAgeMs:       parseInt (process.env.STALE_ORDER_MAX_AGE_MS     ?? '15000'),
+  maxOpenOrders:            parseInt (process.env.MAX_OPEN_ORDERS            ?? '20'),
 }
 
 const ASSET = 'BTC'
@@ -39,13 +40,22 @@ export function getScalperState() {
     position: scalper.getPosition(),
     openOrders: scalper.getOrderCount(),
     summary: scalper.getSummary(),
+    leaderSide: scalper.getLeaderSide(),
+    loserSide: scalper.getLoserSide(),
   }
 }
 
 // Keep legacy exports compatible with live.ts
 export function getLivePosition() { return null }
 export function getLiveStats() {
-  return { sharesPerSide: DEFAULT_CONFIG.sharesPerOrder, asset: ASSET, duration: DURATION, hasPosition: getActiveScalper() !== null, positionStatus: getActiveScalper()?.getPhase() ?? 'idle' }
+  return {
+    primaryShares: DEFAULT_CONFIG.primaryShares,
+    secondaryShares: DEFAULT_CONFIG.secondaryShares,
+    asset: ASSET,
+    duration: DURATION,
+    hasPosition: getActiveScalper() !== null,
+    positionStatus: getActiveScalper()?.getPhase() ?? 'idle',
+  }
 }
 
 // ─── Main live loop ──────────────────────────────────────────────────────
@@ -55,8 +65,9 @@ export async function startLiveTrader(): Promise<void> {
   logger.info('Live Trader (BoshBashBish Scalper) started', {
     asset: ASSET,
     duration: `${DURATION}m`,
-    entryUp: DEFAULT_CONFIG.entryThresholdUp,
-    entryDown: DEFAULT_CONFIG.entryThresholdDown,
+    leaderThreshold: DEFAULT_CONFIG.leaderThreshold,
+    primaryShares: DEFAULT_CONFIG.primaryShares,
+    secondaryShares: DEFAULT_CONFIG.secondaryShares,
     maxExposure: `$${DEFAULT_CONFIG.maxExposureUsdc}`,
   })
 

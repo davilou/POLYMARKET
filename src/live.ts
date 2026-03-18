@@ -29,9 +29,10 @@ async function main(): Promise<void> {
     asset: 'BTC',
     market: '5m Up/Down',
     strategy: 'BoshBashBish Scalper',
-    entryUp: process.env.ENTRY_THRESHOLD_UP ?? '0.35',
-    entryDown: process.env.ENTRY_THRESHOLD_DOWN ?? '0.30',
-    maxExposure: process.env.MAX_EXPOSURE_USDC ?? '50',
+    leaderThreshold: process.env.LEADER_THRESHOLD ?? '0.52',
+    primaryShares: process.env.PRIMARY_SHARES ?? '15',
+    secondaryShares: process.env.SECONDARY_SHARES ?? '5',
+    maxExposure: process.env.MAX_EXPOSURE_USDC ?? '30',
   })
 
   // Start spot price updates
