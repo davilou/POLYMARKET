@@ -1,6 +1,7 @@
 # BoshBashBish — Estratégia Documentada
 
 > **Referência viva.** Atualizar sempre que descobrirmos novos padrões ou erros de implementação.
+> Última análise: 4 candles BTC 5m reais via Data API (18 Mar 2026)
 
 ---
 
@@ -8,306 +9,368 @@
 
 | Métrica | Valor |
 |---------|-------|
-| P&L total | ~$231.156 |
-| Volume total | $43.4M+ |
-| Trades totais | 15.097 |
+| P&L total | ~$242.042 |
+| Volume total | $44.2M+ |
+| Trades totais | 15.262 |
 | Maior win | $7.949 |
-| Portfolio atual | ~$2.829 |
-| Ganho em 1 mês | $146K → $231K (+58%) |
+| Portfolio atual | ~$6.514 |
+| Ganho em 1 mês | $146K → $242K (+66%) |
 | Desde | 4 de Dezembro de 2025 |
-| Median order | ~$6 |
-
-**Perfil:** Market maker tático + captura de mispricing em mercados binários BTC/ETH/SOL/XRP 5m e 15m.
+| Wallet | `0x29bc82f761749e67fa00d62896bc6855097b683c` |
 
 ---
 
-## 2. O que a estratégia NÃO é
+## 2. O que a estratégia REALMENTE é (descoberto via Data API)
 
-- ❌ Arbitragem pura (comprar os dois lados simultaneamente quando sum < 1.0)
-- ❌ Bot de momentum simples
-- ❌ Hold-to-resolution em posições balanceadas
+**É ARBITRAGEM PURA + SCALP REATIVO**, não market making direcional.
+
+### Entrada: compra OS DOIS LADOS simultaneamente
+
+Quando a soma Up+Down < 1.0, ele entra nos dois lados ao mesmo tempo:
+
+```
+Candle 1773858900, T+7-17s:
+  BUY Up  @ 0.65-0.71 (100-400 shares)
+  BUY Down @ 0.28-0.33
+  Soma = 0.70 + 0.29 = 0.99 → lucro garantido se ambos fillam
+
+Candle 1773859200, T+93s:
+  BUY Down @ 0.23 (200+ shares)
+  BUY Up   @ 0.75
+  Soma = 0.23 + 0.75 = 0.98 → puro arb
+
+Candle 1773859500, T+5s:
+  BUY Down @ 0.51 (397 shares = $203!)
+  BUY Up   @ 0.44-0.46
+  Soma = 0.51 + 0.44 = 0.95 → grande alpha
+```
+
+A lógica: se entrar em ambos e um ganhar ($1/share), o lucro do ganhador cobre o custo do perdedor + sobra. Quanto menor a soma, maior o lucro garantido.
 
 ---
 
-## 3. O que a estratégia É
+## 3. Dados Reais de 4 Candles (18 Mar 2026)
 
-**Market making com captura de mispricing em 3 camadas:**
+### Candle btc-updown-5m-1773858600
 
-1. **Liquidez maker** — posta ordens limit em ambos os lados, ganha rebates do Polymarket mesmo quando sum > 1.0
-2. **DCA em mispricing** — quando um lado cai abaixo do valor justo, acumula em escada
-3. **Scalp de volatilidade** — realiza lucro rapidamente quando o preço reverte, sem esperar resolução
+```
+T+17s:  SELL Down @ 0.37-0.39 (101sh) + BUY Down @ 0.36
+T+29s:  Down DESPENCOU: BUY Down @ 0.21-0.27 (cascata!)
+T+31s:  BUY Down @ 0.22 (100sh)
+T+33s:  BUY Down @ 0.27 (100sh)
+T+35s:  BUY Down @ 0.31-0.34 + SELL Down @ 0.31 (scalp)
+T+37s:  BUY Up @ 0.73 (40sh) + SELL Down @ 0.34
+T+39s:  SELL Down @ 0.30-0.34 + BUY Down @ 0.27
+T+285s: BUY Up @ 0.06 (100sh) — LAST CALL EXTREMO
+```
 
-**Comportamento real observado (candle 18:07-18:08, BTC 5m, 18 Mar 2026):**
-- 349 trades em ~5 minutos = $3.658 USDC volume
-- Median order ~$6
-- Compra e vende o mesmo lado várias vezes no mesmo candle
-- Nunca espera o mercado fechar — realiza parcialmente e reposiciona
+**Resultado:** Down ganhou. Ele acumulou Down @ 0.21-0.34, vendeu @ 0.30-0.39.
+
+### Candle btc-updown-5m-1773858900
+
+```
+T+7s:   BUY Up  @ 0.65  (12sh) + BUY Down @ 0.29 (76sh)
+T+9s:   BUY Up  @ 0.67-0.71 (200+sh) + BUY Down @ 0.28-0.31
+T+11s:  BUY Up  @ 0.66-0.70 (100+sh) + BUY Down @ 0.30-0.31
+T+13s:  BUY Up  @ 0.63-0.70 (100+sh) + BUY Down @ 0.33
+T+15s:  BUY Up  @ 0.64-0.70 (150+sh)
+T+129s: BUY Down @ 0.03 (95sh) — LAST CALL @ 0.03!
+T+185s: BUY Down @ 0.09 (101sh)
+T+213s: BUY Down @ 0.06 (3sh)
+```
+
+**Insight:** Entrou pesado nos dois lados no começo (arb @ 0.99). Up estava ganhando. Last call compra Down @ 0.03 apostando em reversão final.
+
+### Candle btc-updown-5m-1773859200
+
+```
+T+93s:  BUY Down @ 0.23 (200+sh total) + BUY Up @ 0.75 (130+sh)
+        → Soma = 0.98 (ambos os lados ao mesmo tempo!)
+T+115s: BUY Down @ 0.23 (cascata de 12 ordens)
+T+123s: BUY Up  @ 0.57 (94sh)
+T+129s: BUY Down @ 0.28-0.30 (100+sh)
+T+205s: BUY Down @ 0.07 (100sh) — LAST CALL
+```
+
+**Insight:** Não encontrou entrada no início (T+0-90 sem trades BTC 5m). Esperou até T+93s quando surgiu oportunidade. Down @ 0.23 + Up @ 0.75 = soma 0.98.
+
+### Candle btc-updown-5m-1773859500
+
+```
+T+5s:   BUY Down @ 0.51 (397sh = $203!) + BUY Up @ 0.44-0.46
+T+13s:  Up caiu de 0.46→0.37: BUY Up @ 0.37 (100sh)
+T+23s:  BUY Down @ 0.49-0.52 (100+sh) + BUY Up @ 0.45
+T+25s:  BUY Down @ 0.52-0.53 (250+sh)
+T+39s:  BUY Down @ 0.56-0.57 (200+sh) + BUY Up @ 0.36-0.37
+T+93s:  Up despencou para 0.15-0.16: BUY Up (200+sh)
+T+95s:  Up em 0.10-0.11: BUY Up (600+sh!!!)
+T+99s:  BUY Up @ 0.10 (100+sh)
+T+113s: SELL Up @ 0.18-0.19
+T+121s: SELL Up @ 0.19-0.20
+T+127s: SELL Up @ 0.22
+T+131s: SELL Up @ 0.22
+T+137s: BUY Down @ 0.78 (41sh) — Down spiked ao final
+```
+
+**Insight:** Entrou em ambos T+5s. Up caiu, DCA massivo. Up recuperou de 0.10→0.22 = +120%! Vendeu escada de 0.18-0.22.
 
 ---
 
-## 4. Flowchart da Estratégia
+## 4. Flowchart CORRIGIDO da Estratégia
 
 ```
 LOOP 500ms
 │
 ├─ 1. FETCH orderbook Up + Down
-│      Calcula midpoints e melhores bids/asks
+│      Calcula: upMid, downMid, soma = upMid + downMid
 │
 ├─ 2. RECONCILE fills
-│      Detecta quais ordens foram executadas
-│      Atualiza posições e avg cost
 │
-├─ 3. MONITORING — procura mispricing
-│      Se upMid < 0.35 → ENTRADA Up  (mercado acha que Down ganha → compra Up por reversão)
-│      Se downMid < 0.30 → ENTRADA Down
-│      Se nenhum → aguarda próximo tick
+├─ 3. ENTRADA ARB — Se soma < threshold (ex: 0.97):
+│      Entra nos DOIS LADOS simultaneamente
+│      BUY Up  com 100-400 shares @ bestAsk Up
+│      BUY Down com 100-400 shares @ bestAsk Down
+│      Lógica: se um ganhar $1/share, cobre o custo do outro + lucro
 │
-├─ 4. DCA ENTRY (quando threshold ativado)
-│      Coloca 10-30 ordens BUY em escada de preços
-│      Ex: bestAsk = 0.35 → ordens de 0.35 até 0.315 em 10 steps
-│      Usa createOrder() local + postOrders() batch (1 chamada de rede)
+├─ 4. ENTRADA DIRECIONAL — Se um lado muito barato:
+│      Preço < 0.25: Entra massivo nesse lado (DCA cascata)
+│      Reativo: se preço cai violentamente (0.45→0.30 em 1 tick), entra
 │
-├─ 5. HEDGE (fase 'entered')
-│      Se lado oposto > 0.55 → compra hedge no outro lado
-│      Ex: entrou Up, Down sobe para 0.57 → compra 5 shares Down
-│      Protege contra spike do lado contrário
+├─ 5. DCA REATIVO (durante o candle):
+│      Preço caiu mais? Entra com mais shares ao preço menor
+│      Não é ladder pré-determinado — é reativo ao movimento
 │
-├─ 6. TAKE PROFIT (fase 'entered' ou 'hedged')
-│      Se gain >= 10% sobre avg cost → SELL em escada
-│      5 ordens SELL de currentMid-0.02 até currentMid+0.03
-│      Realização parcial, não liquida tudo
-│      Volta para MONITORING após sair
+├─ 6. TAKE PROFIT (assimétrico):
+│      Se side "winner" subiu 20-100%+ → SELL em escada
+│      Se side "loser" está perdendo → SELL rápido (10-30s) pra liberar capital
 │
-├─ 7. LAST CALL (últimos 120 segundos)
-│      Identifica o lado perdedor (menor preço)
-│      Se preço < 0.20 → compra 5 shares (aposta contrária)
-│      Risco/retorno: paga $0.75 → recebe $5 se acertar (6.6x)
-│      Baseado na volatilidade extrema dos últimos 2 minutos
+├─ 7. LAST CALL (últimos 1-300s — momento variável):
+│      Se preço < 0.09 → Compra 100sh (retorno potencial: 11x se ganhar)
+│      Se preço < 0.06 → Compra 100sh (retorno potencial: 16x)
+│      Timing: pode ser T+129s, T+185s, T+213s, T+285s — sem horário fixo
 │
-└─ 8. CLEANUP (todo tick)
-       Cancela ordens > 15s sem fill (stale)
-       Para de operar 15s antes do fim
-       SIGINT → cancelAll() imediato
+└─ 8. CLEANUP
+       Cancela ordens velhas
+       Para 15s antes do fim
 ```
 
 ---
 
-## 5. Padrões de Comportamento Real
+## 5. Parâmetros REAIS (corrigidos com dados da API)
 
-### Sequência típica num candle
+| Parâmetro | Valor REAL observado | Nosso config atual | Status |
+|-----------|---------------------|--------------------|--------|
+| Entrada | AMBOS os lados quando soma < 0.97-0.99 | Um lado só (threshold direcional) | ❌ ERRADO |
+| Shares/ordem | **100-400 shares** por ordem | 5 | ❌ MUITO PEQUENO |
+| Exposure/candle | **$200-300 USDC** | $50 máximo | ❌ UNDEREXPOSED |
+| Timing entrada | **T+5s a T+20s** (imediato) ou T+90-100s | Contínuo 500ms | ⚠️ PARCIAL |
+| Last call preço | **0.03-0.09** (extremo) | 0.20 (conservador) | ❌ ERRADO |
+| Last call timing | **Qualquer momento** quando preço colapsa | 120s antes | ❌ ERRADO |
+| Take profit | **20-120%** sobre custo | 10% fixo | ❌ CONSERVADOR |
+| Stop loss | **10-30s** se lado perdendo capital | Não implementado | ❌ FALTANDO |
+| DCA trigger | **Crash brusco de preço** (reativo) | Ladder linear fixo | ❌ DIFERENTE |
+| Soma de entrada | **< 0.97-0.99** (arb puro) | Não verifica soma | ❌ FALTANDO |
+
+---
+
+## 6. Erros Críticos na Nossa Implementação
+
+### Erro #1 — CRÍTICO: Entra em um lado só
+**Problema:** Nossa lógica é: "se upMid < 0.35 → entra Up". Mas BoshBashBish entra nos DOIS LADOS quando a soma é baixa.
+
+**Fix:** Verificar `upMid + downMid < 0.97` como trigger primário. Entrar nos dois.
+
+### Erro #2 — CRÍTICO: Shares muito pequenas (5 vs 100-400)
+**Problema:** Com 5 shares @ $0.35 = $1.75 por ordem × 10 ordens = $17.50 total. BoshBashBish coloca $203 numa única ordem.
+
+**Fix:** Com $100 de budget, usar 20-30 shares/ordem (não 5). Mas a estratégia arb requer capital para funcionar — com $100 vs $6500 do BoshBashBish, as edges são muito menores.
+
+### Erro #3 — CRÍTICO: Last Call em 0.20 (deveria ser 0.03-0.09)
+**Problema:** `lastCallMaxPrice: 0.20` faz entrar em preços muito caros. O real valor de last call é 0.03-0.09 (quando o lado está praticamente morto mas ainda pode reverter).
+
+**Fix:** `lastCallMaxPrice: 0.09`. Só entrar se preço < 0.09.
+
+### Erro #4 — CRÍTICO: Não verifica soma Up+Down
+**Problema:** A estratégia core é arb puro (soma < 1.0). Não implementamos esse conceito.
+
+**Fix:** Adicionar `arbThreshold: 0.97` — se `upMid + downMid < 0.97`, entra nos dois lados.
+
+### Erro #5 — ALTO: DCA linear vs DCA reativo
+**Problema:** Nosso DCA coloca 10 ordens uniformes de 0.35 a 0.315. BoshBashBish reage quando o preço CAI bruscamente — entra com mais force quando o preço despenca.
+
+**Fix:** Monitorar `deltaPrice = prevMid - currentMid`. Se delta > 0.05 em 1 tick → entrar imediatamente com tamanho maior.
+
+### Erro #6 — ALTO: Sem stop loss temporal
+**Problema:** Se o lado que entramos está perdendo (preço continua caindo após DCA), BoshBashBish vende em 10-30s para liberar capital. Nós seguramos indefinidamente.
+
+**Fix:** Se lado foi comprado e preço está abaixo do nosso avg cost há 30s, vender 50% da posição.
+
+### Erro #7 — MÉDIO: Take profit conservador (10% vs 20-120%)
+**Problema:** Vendemos quando ganhamos 10%. BoshBashBish segura até 120% (comprou @ 0.10, vendeu @ 0.22).
+
+**Fix:** `profitTargetPct: 0.20` mínimo. Mas o exit ideal é reativo ao mercado, não fixo.
+
+---
+
+## 7. Por Que a Estratégia Funciona
+
+### 7.1 Arb Puro (soma < 1.0)
+Se compra Up @ 0.44 e Down @ 0.51 = custo total = $0.95/share pair. Um lado sempre ganha $1.00. Lucro garantido = $0.05/share pair **independente do resultado**.
+
+### 7.2 Amplificação com Fills Parciais
+Nem sempre ambas as ordens filam. Quando só uma fila (ex: Down a 0.51), agora tem uma posição direcional que pode ganhar $0.49/share se Down ganhar, ou perder $0.51 se Up ganhar.
+
+Por isso o DCA reativo — se o lado oposto começa a subir, DCA para baixar o custo médio.
+
+### 7.3 Last Call como Loteria EV+
+Comprar @ 0.03 quando faltam 2 minutos:
+- Se ganhar: $1.00 - $0.03 = +$0.97 × 100 shares = +$97
+- Se perder: -$3
+- Mesmo com 5% de chance de acerto: EV = 0.05×97 - 0.95×3 = +$4.85 - $2.85 = **+$2 EV positivo**
+
+### 7.4 Rebates de Liquidez
+Maker orders (limit) recebem rebates do Polymarket. Com $44M volume, os rebates são uma fonte significativa de lucro adicional.
+
+### 7.5 Assimetria de Exit (segura winners, corta losers rápido)
+- Winner: segura até 100%+ de gain
+- Loser: corta em 10-30s
+
+Essa assimetria (loss pequeno, gain grande) é o motor principal do P&L acumulado.
+
+---
+
+## 8. Mecânica dos Candles — Timeline Típica
 
 ```
-T+0s   Mercado abre
-T+2s   BoshBash já tem 40+ ordens no livro (DCA pré-posicionado)
-T+5s   Primeiro fill — começa a acumular
-T+30s  Down sobe → hedge em Down
-T+60s  Up reverteu 10% → vende escada parcial
-T+90s  Preço caiu de novo → novo DCA mais baixo
-T+120s  Up @ 0.22 → acumula agressivamente (último DCA)
-T+270s Últimos 2 min: Up @ 0.12-0.16 → last call
-T+285s Para de operar (15s antes)
-T+300s Candle fecha
-```
-
-### Exemplo concreto observado (18:07-18:09)
-
-```
-18:07:21  BUY Down @ 0.45-0.46 (~$3)
-18:07:23  BUY Down $448 em 40 ordens (entrada DCA massiva)
-18:07:23  SELL Down $40 @ 0.40 (scalp imediato)
-18:07:25  SELL Down $50 @ 0.42, $43 @ 0.43
-18:07:25  BUY Up $105 @ 0.51-0.53 (flip de lado)
-18:07:29  SELL Down $90 @ 0.42-0.45 (liquida Down restante)
-18:07:35  BUY Up $230 @ 0.38-0.55 (ladder Up)
-18:07:39  SELL Up $77 @ 0.39-0.43 (realização parcial)
-18:07:41  BUY Up $170 + BUY Down $80 (hedge simultâneo)
-18:08:07  BUY Up $80 @ 0.27-0.31 (DCA agressivo — Up caiu)
-18:08:17  SELL Up $97 @ 0.39-0.40 (saiu com lucro)
-18:08:31  BUY Down $19 @ 0.55 (hedge no topo)
-18:09:25  BUY Up $80 @ 0.22-0.36 (Up colapsou — last buy)
-18:09:43  BUY Up $27 @ 0.12-0.16 (last call)
+T+0s    Mercado abre
+T+2-5s  Verifica soma. Se soma < 0.97: entra AMBOS os lados imediatamente
+T+5-20s Ordens grandes nos dois lados (100-400 shares cada)
+T+20-90s Ajuste: se um lado cai, DCA adicional no barato
+T+90s+  Monitoramento: um lado ganha, outro perde
+        → Vende o perdedor rápido (ou aguarda DCA mais barato)
+        → Segura o ganhador
+T+qualquer: Preço colapsa a 0.03-0.09? → LAST CALL imediato (100sh)
+T+285s  Para de operar
+T+300s  Candle fecha
 ```
 
 ---
 
-## 6. Parâmetros Críticos e Seus Limites
+## 9. Budget Math CORRIGIDO ($100 budget)
 
-| Parâmetro | Valor BoshBash real | Nosso default | Nota |
-|-----------|---------------------|---------------|------|
-| `entryThresholdUp` | ~0.35 | 0.35 | Se mudar, muda o alpha |
-| `entryThresholdDown` | ~0.30 | 0.30 | Down cai menos que Up |
-| `dcaOrders` | 10-30 | 10 | Mais ordens = melhor avg cost |
-| `dcaSpreadPct` | ~15% | 10% | Spread maior = fills em quedas maiores |
-| `sharesPerOrder` | min 5 (Polymarket) | 5 | Abaixo de 5 rejeita |
-| `hedgeThreshold` | 0.55 | 0.55 | Muito baixo → hedge prematuro |
-| `profitTargetPct` | 8-15% | 10% | Muito alto → nunca realiza |
-| `lastCallMaxPrice` | 0.12-0.20 | 0.20 | Acima de 0.20 = risco alto |
-| `stopTradingSecs` | 15s | 15s | Segurança mínima |
-| `staleOrderMaxAgeMs` | 10-15s | 15s | Ordens velhas bloqueiam capital |
-| `pollMs` | ~500ms | 500ms | 2 calls/tick = ~4 req/s |
+### O problema de escala
 
----
+BoshBashBish opera com ~$6.500 de portfolio. Nós temos $100. As edges de arb (soma < 0.97) são capturadas por quem tem capital para preencher o spread.
 
-## 7. Por Que Funciona
+| Cenário | BoshBashBish | Nós ($100) |
+|---------|-------------|------------|
+| Exposição por candle | $200-300 | $30-50 |
+| Arb por candle (soma 0.97) | $6-9 | $0.90-1.50 |
+| Last call (100sh @ 0.05) | -$5 ou +$95 | Não viável (min 5sh = $0.25) |
+| Last call (5sh @ 0.05) | - | -$0.25 ou +$4.75 |
 
-### 7.1 Mean Reversion em Mercados Binários Curtos
-Em mercados de 5 minutos, o preço oscila muito. Quando Up cai para 0.27, o mercado ainda não sabe o resultado — a probabilidade real é ~50%. Comprar a 0.27 quando o valor justo é 0.50 é uma edge enorme.
+### Com $100, estratégia realista:
 
-### 7.2 Rebates de Liquidez
-O Polymarket paga rebates para quem posta ordens maker (limit orders que ficam no livro). BoshBash com 15K trades e $43M volume recebe rebates significativos que transformam operações neutras em lucrativas.
-
-### 7.3 DCA como Hedge Natural
-10 ordens espalhadas de 0.35 a 0.315 significa que se o preço cair mais, ele compra mais barato. O avg cost melhora automaticamente com a queda.
-
-### 7.4 Last Call como Loteria EV+
-Comprar Up @ 0.12 quando faltam 2 minutos:
-- Perde: -$0.60 (5 shares × $0.12)
-- Ganha: +$4.40 (5 shares × $1 - $0.60)
-- Frequência de acerto: >20% das vezes (mercado ainda pode reverter)
-- EV = 0.20 × $4.40 - 0.80 × $0.60 = +$0.40 por aposta
-
-### 7.5 Alta Frequência × Edge Pequena
-1-3% de edge × 50 trades/candle × 288 candles/dia = lucro consistente que composta.
+```
+Arb entry: 20sh Up @ 0.44 + 20sh Down @ 0.51 = $18.80
+Lucro se ambos fillam: 20 × (1 - 0.95) = $1.00 garantido
+DCA se um cai: +10sh × custo médio mais baixo
+Last call: 5sh × 0.06 = $0.30 → ganho potencial = $4.70
+```
 
 ---
 
-## 8. Erros Comuns e Como Detectar
-
-### 8.1 Ordens Nunca Filladas
-**Sintoma:** `openOrders` alto, `upShares` e `downShares` = 0 depois de vários ticks
-**Causa:** Preços do DCA muito longe do spread real; tickSize errado
-**Fix:** Verificar `tickSize` do mercado antes de criar ordens. Usar `bestAsk` como base, não midpoint
-
-### 8.2 Entrada Prematura
-**Sintoma:** Entra com DCA mas preço continua caindo, avg cost sobe demais
-**Causa:** `entryThresholdUp` muito alto — entra quando ainda tem espaço para cair
-**Fix:** Reduzir threshold para 0.32 ou esperar confirmação de 2 ticks consecutivos abaixo
-
-### 8.3 Não Realiza Lucro
-**Sintoma:** `upMid` subiu mas `realizedPnl` = 0
-**Causa:** `profitTargetPct` muito alto, ou sell ladder com preços impossíveis de fill
-**Fix:** Verificar que `basePrice` do sell ladder é realista (não acima do bestBid atual)
-
-### 8.4 Hedge Prematuro
-**Sintoma:** Entra em Up, mas compra Down também quando Down = 0.56 ainda não voltou
-**Causa:** `hedgeThreshold` muito baixo (0.55 pode ser baixo em alguns candles)
-**Fix:** Subir para 0.60 ou verificar se a posição comprada já cobriu o custo antes de hedgear
-
-### 8.5 Last Call em Mercado Errado
-**Sintoma:** Last call compra Up @ 0.18 mas Up estava ganhando (já estava em 0.80)
-**Causa:** Lógica de "losingSide" identifica o lado com menor preço, mas se ambos caíram é sinal de bug no livro
-**Fix:** Verificar que `upMid + downMid ≈ 1.0` antes de qualquer decisão. Se sum < 0.6 ou > 1.1, skip o tick
-
-### 8.6 postOrders Batch Falha
-**Sintoma:** Logs de "postOrders batch error", nenhuma ordem DCA colocada
-**Causa:** API Polymarket pode rejeitar batch em certos horários
-**Fix:** `placeDCAFallback` já existe — garante que fallback funciona individualmente
-
-### 8.7 fillSize Duplicado
-**Sintoma:** `realizedPnl` exploде positivo de forma irreal
-**Causa:** `reconcile()` conta o mesmo fill duas vezes se a ordem é removida do mapa antes de verificar
-**Fix:** O reconcile atual usa `delete` só após processar o fill — não alterar essa ordem
-
----
-
-## 9. Comparação com Outros Top Traders
+## 10. Comparação com Outros Top Traders
 
 | Trader | P&L | Median order | % preços < 0.50 | Sum range |
 |--------|-----|-------------|-----------------|-----------|
-| **BoshBashBish** | $231K | ~$6 | **72%** | 0.78-0.97 |
+| **BoshBashBish** | $242K | ~$6 | **72%** | 0.78-0.97 |
 | Hcrystallash | ? | $6.20 | 48% | 0.84-1.12 |
 | Female-Billing | $156K | $6.70 | 53% | 0.88-1.08 |
 
-**Insight:** BoshBash compra muito mais abaixo de 0.50 (72% dos trades). É o mais agressivo na captura de mispricing extremo.
+---
+
+## 11. Dados Reais da API — Exemplos de Preços
+
+### Distribuição de preços de entrada observados
+
+| Preço | Frequência | Contexto |
+|-------|-----------|---------|
+| 0.03-0.09 | Raro mas grande volume | Last call extremo |
+| 0.10-0.20 | Médio | DCA após crash + last call |
+| 0.21-0.35 | Alto | DCA mid-candle |
+| 0.36-0.50 | Muito alto | Entry normal do lado "barato" |
+| 0.51-0.75 | Alto | Entry do lado "caro" (arb) |
+| 0.75+ | Raro | Flip quando lado ganhou muito |
+| 0.78 | Visto em T+137s | BUY Down quando Down estava ganhando |
 
 ---
 
-## 10. Budget Math ($100, mínimo 5 shares)
+## 12. Checklist de Diagnóstico ATUALIZADO
 
-```
-DCA entry:   10 ordens × 5 shares × $0.35 = $17.50
-Hedge:        5 shares × $0.55            = $ 2.75
-Last call:    5 shares × $0.15            = $ 0.75
-─────────────────────────────────────────────────
-Max exposure por candle:                  ≈ $21.00
-Reserva:                                  = $79.00
+Quando o bot não está performando:
 
-Cenário WIN (acerta o lado principal):
-  50 shares × $1.00 - $17.50 custo       = +$32.50
-
-Cenário LOSS (erra tudo):
-  Perda máxima                            = -$21.00
-
-Last call WIN:
-  5 shares × $1.00 - $0.75               = +$4.25
-
-Last call LOSS:
-  Perda                                   = -$0.75
-```
+- [ ] `upMid + downMid` < 0.97? Se sim, deveria entrar nos DOIS lados
+- [ ] Shares por ordem é suficiente? Mínimo de 20sh para arb fazer sentido
+- [ ] Last call threshold correto? Deve ser < 0.09, não < 0.20
+- [ ] Stop loss temporal implementado? Se posição perde por 30s, reduzir
+- [ ] DCA reativo a crashes? Se preço cai 0.05+ em 1 tick, entrar imediatamente
+- [ ] Take profit adequado? Não sair antes de 20% de gain
+- [ ] Ordens fillando? Verificar tickSize e proximity ao bestAsk
+- [ ] `cancelAll()` funciona no SIGINT?
 
 ---
 
-## 11. Arquitetura de Implementação
-
-```
-src/
-  scalper.ts         — Engine 500ms, decision tree, fases
-  orderManager.ts    — Registry de ordens, DCA batch, reconciliação de fills
-  positionManager.ts — Net shares, avg cost, P&L por lado
-  liveTrader.ts      — Orquestrador: descobre mercado → roda scalper → repete
-  types.ts           — ScalperConfig, LocalOrder, PositionState, MarketContext, FillEvent
-  live.ts            — Spot polling 500ms, dashboard /api/stats, SIGINT → cancelAll
-```
-
-### Fluxo de chamadas API por tick (500ms)
-```
-getOrderBook(upTokenId)    → 1 call
-getOrderBook(downTokenId)  → 1 call
-getOpenOrders(asset_id=Up)   → 1 call (reconcile)
-getOpenOrders(asset_id=Down) → 1 call (reconcile)
-─────────────────────────────────────────────────
-Total: ~4 calls/tick × 2 ticks/s = ~8 req/s
-Limite Polymarket: 100 req/s → OK
-```
-
----
-
-## 12. Variáveis de Ambiente (Ajuste fino sem recompilar)
+## 13. Variáveis de Ambiente CORRIGIDAS
 
 ```env
-ENTRY_THRESHOLD_UP=0.35       # threshold para comprar Up
-ENTRY_THRESHOLD_DOWN=0.30     # threshold para comprar Down
-DCA_ORDERS=10                 # número de ordens DCA
-DCA_SPREAD_PCT=0.10           # spread do DCA (10% do preço base)
-SHARES_PER_ORDER=5            # shares por ordem (mínimo Polymarket)
-HEDGE_THRESHOLD=0.55          # quando hedgear lado oposto
-PROFIT_TARGET_PCT=0.10        # take profit em 10%
-PROFIT_LADDER_ORDERS=5        # ordens no sell ladder
-LAST_CALL_SECS=120            # janela de last call (últimos 2min)
-LAST_CALL_MAX_PRICE=0.20      # preço máximo para last call
-LAST_CALL_SHARES=5            # shares na aposta contrária
-MAX_EXPOSURE_USDC=50          # exposição máxima total ($)
-MAX_EXPOSURE_PER_SIDE=30      # máximo shares por lado
-STOP_TRADING_SECS=15          # para X segundos antes do fim
-MAX_OPEN_ORDERS=20            # limite de ordens abertas simultâneas
-STALE_ORDER_MAX_AGE_MS=15000  # cancela ordens velhas após 15s
+# Arb threshold (entrada nos dois lados quando soma < isto)
+ARB_THRESHOLD=0.97
+
+# Thresholds direcionais (entrada unilateral quando muito barato)
+ENTRY_THRESHOLD_UP=0.25
+ENTRY_THRESHOLD_DOWN=0.25
+
+# DCA
+DCA_ORDERS=5                  # menos ordens, mas maiores
+SHARES_PER_ORDER=20           # mínimo 20 (não 5)
+
+# Hedge / stop
+HEDGE_THRESHOLD=0.65          # subiu para 0.65 (0.55 era prematuro)
+
+# Take profit
+PROFIT_TARGET_PCT=0.20        # mínimo 20% (não 10%)
+
+# Last call CORRIGIDO
+LAST_CALL_MAX_PRICE=0.09      # 0.09 (não 0.20!)
+LAST_CALL_SHARES=5            # mínimo Polymarket
+
+# Risk
+MAX_EXPOSURE_USDC=60          # pode subir com confiança
+MAX_EXPOSURE_PER_SIDE=50      # shares (não USDC)
 ```
 
 ---
 
-## 13. Checklist de Diagnóstico
+## 14. Arquitetura — O que precisa mudar
 
-Quando o bot não está performando, verificar nesta ordem:
+```
+src/scalper.ts
+  → Adicionar: verificar soma upMid + downMid < arbThreshold
+  → Adicionar: entrar nos DOIS lados quando soma < threshold
+  → Corrigir: lastCallMaxPrice de 0.20 para 0.09
+  → Adicionar: stop loss temporal (vender 50% se perdendo por 30s)
+  → Corrigir: profitTargetPct de 0.10 para 0.20
 
-- [ ] `upMid + downMid ≈ 1.0`? Se não, livro de ordens com problema
-- [ ] Ordens estão sendo aceitas? (sem `errorMsg` nos logs)
-- [ ] `filledSize` > 0 depois de 15s? Se não, preços do DCA fora do spread
-- [ ] `phase` muda de `monitoring` para `entered`? Se fica preso em monitoring, threshold alto demais
-- [ ] `realizedPnl` cresce? Se não, sell ladder acima do mercado (nunca filla)
-- [ ] `cancelAll()` funciona no SIGINT? Testar antes de operar real
-- [ ] Dashboard `/api/stats` mostra estado correto?
+src/types.ts (ScalperConfig)
+  → Adicionar: arbThreshold: number  // 0.97
+
+src/orderManager.ts
+  → Adicionar: placeBothSides() para entrada arb simultânea
+```
 
 ---
 
 *Última atualização: 2026-03-18*
-*Baseado em: análise de 15.097 trades do BoshBashBish + implementação própria*
+*Baseado em: análise de 4 candles reais via Data API + 15.262 trades históricos*
+*Wallet analisada: 0x29bc82f761749e67fa00d62896bc6855097b683c*
