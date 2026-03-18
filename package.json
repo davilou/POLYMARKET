@@ -1,0 +1,26 @@
+{
+  "name": "polymarket-mm-bot",
+  "version": "1.0.0",
+  "description": "Polymarket market maker bot — BTC/ETH 15min markets",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "live": "node dist/live.js",
+    "test": "tsx src/test.ts",
+    "validate": "tsx src/validate.ts"
+  },
+  "dependencies": {
+    "@polymarket/clob-client": "^4.0.0",
+    "ethers": "^6.13.0",
+    "axios": "^1.7.0",
+    "winston": "^3.13.0",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "tsx": "^4.16.0",
+    "@types/node": "^20.0.0"
+  }
+}
